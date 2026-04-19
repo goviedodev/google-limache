@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  image-proxy:
+    build: .
+    image: imaglim-go:latest
+    container_name: imaglim-go
+    ports:
+      - "14771:14771"
+    environment:
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-AIzaSyBsup_X4cG3AstLomRcc34SaBT1xeUp2Qs}
+      - PORT=14771
+    volumes:
+      - ./photos:/app/photos
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:14771/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

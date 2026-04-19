@@ -123,7 +123,7 @@ descripcion: 'Supermercado con productos frescos, abastecimiento y productos nac
 **Archivo**: `src/App.tsx`
 **Severidad**: 🟢
 **Problema**: La variable de entorno `GOOGLE_MAPS_API_KEY` está documentada pero no se usa en el frontend (las fotos de Google Maps no se cargan por falta de la key en el cliente).
-**Recomendación**: Considerar mostrar las fotos del servidor (el script ya genera URLs con la API key del servidor).
+** Recomendación (RESUELTO)**: Usar el **Image Service** (`imagen-servicio/`) que tiene la API key configurada y sirve las fotos desde cache local.
 
 ---
 
@@ -182,6 +182,11 @@ google-limache/
 │   ├── main.tsx            # Entry point
 │   ├── types.ts            # TypeScript interfaces
 │   └── index.css           # Estilos (Google-like)
+├── imagen-servicio/          # Servicio Go para fotos de Google Places
+│   ├── main.go             # Código fuente
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── photos/             # Cache de fotos
 ├── scripts/
 │   ├── dev.sh                # Script desarrollo local
 │   ├── obtener_google_places.py  # Script para obtener datos de Google
@@ -189,6 +194,32 @@ google-limache/
 ├── wrangler.toml            # Configuración Cloudflare (Worker + D1)
 ├── schema.sql              # Schema D1 (actualizado con rating, horario, website)
 └── package.json            # Dependencias
+```
+
+## 🖼️ Image Service (imagen-servicio/)
+
+**Servicio en Go** que descarga y cachea fotos de Google Places API.
+
+> Las URLs de fotos de Google expiran (~30 días). Este servicio las descarga,
+> las guarda en `./photos/` y las sirve desde cache local.
+
+| Propiedad | Valor |
+|-----------|-------|
+| **Puerto** | `14771` |
+| **URL Internet** | `https://imaglim.tellevoapp.cl` |
+| **Servidor** | `tellevoapp.cl` (VPS/propio) |
+| **Binario** | `imaglim-go` |
+| **Documentación** | `imagen-servicio/README.md` |
+
+```bash
+# Iniciar servicio
+cd imagen-servicio
+docker compose up --build
+
+# Endpoints
+curl http://localhost:14771/              # Info del servicio
+curl http://localhost:14771/list           # Fotos en cache
+curl "http://localhost:14771/download?ref=Aap_u..." # Descargar foto
 ```
 
 ---
@@ -218,6 +249,7 @@ google-limache/
 | Frontend | https://google-limache.pages.dev | ✅ Activo |
 | API (Worker) | https://google-limache-api.gonzalo-oviedo-dev.workers.dev | ✅ Deployado |
 | D1 Database | locales-limache (ID: e31afcac-2816-4ee0-aa02-1c009830cb4a) | ✅ 69 registros |
+| Image Service | https://imaglim.tellevoapp.cl | ✅ Activo (Go, puerto 14771) |
 
 ## 🔐 Cuenta Cloudflare
 
