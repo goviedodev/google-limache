@@ -1,8 +1,8 @@
 # 🔍 Code Review - google-limache
 
 > ⚠️ **NOTA IMPORTANTE**: Antes de trabajar en este proyecto, leer primero:
-> - `CONTEXT_ARCHITECTURE.md` - Arquitectura, cuentas y errores documentados
-> - `CONTEXT_ARCHITECTURE.md#-errores-encontrados-y-soluciones` - Soluciones a problemas conocidos
+> - `CONTEXT_ARCHITECTURE.md` - Arquitectura, cuentas y configuración
+> - `BUGS_RESUELTOS.md` - Errores encontrados y soluciones (LEER SIEMPRE ANTES DE CODIFICAR)
 
 ## Resumen Ejecutivo
 - **Archivos revisados**: 8 archivos principales

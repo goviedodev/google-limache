@@ -211,255 +211,24 @@ Versión 3.114.17 instalada, disponible 4.83.0
 
 ---
 
-## 🐛 Errores Encontrados y Soluciones
-
-Esta sección documenta los errores críticos encontrados durante el desarrollo y deploy, con las soluciones aplicadas. **LEER ANTES DE CONTINUAR TRABAJANDO EN ESTE PROYECTO.**
-
-### 0. ⚠️ D1 `.all()` requiere `await` - BUG MUY IMPORTANTE
-
-**Error:**
-La API retorna `{}` (objeto vacío) sin datos, sin errores.
-
-**Causa:** `stmt.all()` y `stmt.bind(...params).all()` retornan una **Promise**. Sin `await`, se retorna la Promise sin resolver, que se serializa como `{}`.
-
-**Código INCORRECTO:**
-```javascript
-const results = params.length > 0 ? stmt.bind(...params).all() : stmt.all();
-return Response.json(results);
-```
-
-**Código CORRECTO:**
-```javascript
-const results = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
-return Response.json(results);
-```
-
-**Regla:** SIEMPRE usar `await` con operaciones D1 (`.all()`, `.run()`, `.first()`, `.raw()`).
-
----
-
-### 1. IDs sin comillas en SQL causan error SQLITE_ERROR
-
-**Error:**
-```
-no such column: loc at offset 183: SQLITE_ERROR
-```
-
-**Causa:** Los IDs tipo `loc-001` sin comillas son interpretados como `loc` menos `001` (operador `-`), no como un string.
-
-**Solución:** SIEMPRE poner comillas simples alrededor de IDs string:
-```sql
--- INCORRECTO:
-VALUES (loc-001, 'Nombre', ...);
-
--- CORRECTO:
-VALUES ('loc-001', 'Nombre', ...);
-```
-
----
-
-### 2. `wrangler pages dev` y `wrangler d1 execute` usan DBs diferentes sin `--persist-to`
-
-**Error:**
-Los datos insertados con `wrangler d1 execute --local` no aparecen en `wrangler pages dev`.
-
-**Causa:** `wrangler d1 execute --local` y `wrangler pages dev` pueden usar directorios de persistencia diferentes por defecto.
-
-**Solución:** Usar `--persist-to` en TODOS los comandos para compartir la misma DB:
-```bash
-# Siempre usar el mismo --persist-to en TODOS los comandos
-npx wrangler d1 execute locales-limache --local --persist-to .wrangler/state --file=schema.sql
-npx wrangler d1 execute locales-limache --local --persist-to .wrangler/state --file=datos.sql
-npx wrangler pages dev public --port 8787 --d1 locales --persist-to .wrangler/state
-```
-
----
-
-### 3. Wrangler `--file` flag no funciona correctamente
-
-**Error:**
-```
-unrecognized token: "\" at offset 203: SQLITE_ERROR
-```
-
-**Causa:** El flag `--file` de wrangler corrupta los caracteres de escape cuando se suben archivos SQL. Wrangler tiene un bug conocido con archivos que contienen caracteres especiales o comillas.
-
-**Solución:** NO usar `--file`. En su lugar:
-1. Leer el archivo SQL y ejecutar cada statement individualmente
-2. O usar la API de D1 directamente con `--command` inline
-
-**Comando correcto:**
-```bash
-# INCORRECTO - causa error:
-npx wrangler d1 execute db-name --remote --file=archivo.sql
-
-# CORRECTO - usar comandos inline:
-npx wrangler d1 execute db-name --remote --command="INSERT INTO..."
-```
-
-**Referencias:** AGENTS.md línea ~"RESOLVED: Wrangler's --file flag corruption issue"
-
----
-
-### 2. Functions de Cloudflare Pages no se reconocen en deploy
-
-**Error:**
-```
-No routes found when building Functions directory: ./functions - skipping
-```
-
-**Causa:** Cloudflare Pages busca las Functions en la carpeta `functions/` en la raíz del proyecto. El archivo debe estar en `functions/api/locales/index.js` (o `.ts`).
-
-**Solución:**
-1. Asegurarse de que la carpeta `functions/` esté en la raíz del proyecto
-2. Usar JavaScript (`.js`) en vez de TypeScript (`.ts`) para las Functions
-3. Crear `public/_worker.js` si se quiere un worker más controlable
-
-**Estructura correcta:**
-```
-proyecto/
-├── functions/           # ← Required para Pages Functions
-│   └── api/
-│       └── locales/
-│           └── index.js
-├── public/             # ← Archivos estáticos
-│   ├── index.html
-│   └── _worker.js      # ← Alternative: Worker bundle
-└── wrangler.toml
-```
-
-**Referencias:** AGENTS.md línea ~"Functions only works in production deployment"
-
----
-
-### 3. D1 Database no vinculada a Pages Functions
-
-**Error:**
-La API devuelve `{}` o `{"error": "Base de datos no configurada"}`
-
-**Causa:** El binding `[[d1_databases]]` en `wrangler.toml` no se vincula automáticamente a Pages Functions en producción. Pages Functions y Workers tienen bindings separados.
-
-**Solución:** Usar un **Worker standalone** en vez de Pages Functions:
-
-```bash
-# 1. Crear wrangler.toml para Worker
-cat > wrangler.toml << 'EOF'
-name = "google-limache-api"
-compatibility_date = "2024-04-18"
-
-[[d1_databases]]
-binding = "locales"
-database_name = "locales-limache"
-database_id = "e31afcac-2816-4ee0-aa02-1c009830cb4a"
-EOF
-
-# 2. Crear worker.js
-cat > worker.js << 'EOF'
-export default {
-  async fetch(request, env) {
-    // API aquí
-  }
-};
-EOF
-
-# 3. Deployar como Worker
-npx wrangler deploy worker.js
-```
-
-**Resultado:** El Worker deployado tiene acceso directo a D1 bindings.
-
-**URLs finales:**
-- Frontend: `https://google-limache.pages.dev` (Cloudflare Pages)
-- API: `https://google-limache-api.gonzalo-oviedo-dev.workers.dev` (Cloudflare Worker)
-
-**Referencias:** AGENTS.md línea ~"API limitation: /api/locales endpoint only works in production"
-
----
-
-### 4. Wrangler desactualizado
-
-**Error:**
-```
-The version of Wrangler you are using is now out-of-date.
-```
-
-**Causa:** Versión 3.x instalada, versión 4.x disponible con mejor soporte.
-
-**Solución:**
-```bash
-npm install --save-dev wrangler@latest
-```
-
-**Importante:** Wrangler 4 tiene cambios en la CLI:
-- `wrangler pages deploy` ahora sube correctamente Functions
-- Cambios en algunos flags
-
----
-
-### 5. Multi-line SQL parsing issue
-
-**Error:**
-```
-SQLITE_MISUSE: Statement is not executable
-```
-
-**Causa:** Los INSERT statements multilínea no se parsean correctamente. El SQL original tenía `INSERT INTO locales (...)` en una línea y `VALUES (...)` en otra.
-
-**Solución:** Parsear carácter por carácter, manejando strings entre comillas:
-
-```python
-def parse_values(values_str):
-    parts = []
-    current = ''
-    in_quote = False
-    for c in values_str:
-        if c == "'":
-            in_quote = not in_quote
-        elif c == ',' and not in_quote:
-            parts.append(current.strip())
-            current = ''
-            continue
-        current += c
-    parts.append(current.strip())
-    return parts
-```
-
-**Referencias:** AGENTS.md línea ~"Character-by-character parsing"
-
----
-
-### 6. Proyecto Cloudflare Workers vs Pages
-
-**Concepto clave:** Hay DOS formas de crear APIs con Cloudflare:
-
-| Característica | Cloudflare Pages | Cloudflare Workers |
-|----------------|-------------------|-------------------|
-| Binding D1 | No funciona bien en local | Funciona correctamente |
-| Deploy | `wrangler pages deploy` | `wrangler deploy` |
-| API Routes | `functions/api/*.js` | `worker.js` |
-| URL | `*.pages.dev` | `*.workers.dev` |
-
-**Recomendación para este proyecto:**
-- Frontend estático → Cloudflare Pages
-- API con D1 → Cloudflare Worker standalone
-
----
-
-### 7. Comandos para verificar estado
-
-```bash
-# Ver deployments
-npx wrangler pages deployment list --project-name=google-limache
-
-# Ver D1 remoto
-npx wrangler d1 execute locales-limache --remote --command "SELECT COUNT(*) FROM locales"
-
-# Ver cuenta
-npx wrangler whoami
-
-# Listar D1
-npx wrangler d1 list
-```
+## 🐛 Errores Resueltos
+
+> **Todos los errores resueltos fueron movidos a `BUGS_RESUELTOS.md`**
+> **LEER `BUGS_RESUELTOS.md` ANTES DE CONTINUAR TRABAJANDO EN ESTE PROYECTO.**
+
+Errores documentados:
+1. D1 `.all()` requiere `await`
+2. IDs sin comillas en SQL causan SQLITE_ERROR
+3. `wrangler pages dev` y `d1 execute` usan DBs diferentes sin `--persist-to`
+4. Wrangler `--file` flag no funciona correctamente con remoto
+5. Functions de Pages no se reconocen en deploy
+6. D1 Database no vinculada a Pages Functions
+7. Wrangler desactualizado
+8. Multi-line SQL parsing issue
+9. `_worker.js` con export incorrecto
+10. Proyecto Workers vs Pages
+
+Ver detalles y soluciones en [`BUGS_RESUELTOS.md`](./BUGS_RESUELTOS.md)
 
 ---
 
@@ -474,6 +243,9 @@ Antes de hacer deploy a producción, verificar:
 - [ ] D1 tiene `database_id` correcto
 - [ ] Wrangler actualizado (`wrangler@latest`)
 - [ ] Tests locales pasan
+- [ ] `await` en todas las llamadas D1 (ver `BUGS_RESUELTOS.md` #0)
+- [ ] IDs SQL con comillas simples (ver `BUGS_RESUELTOS.md` #1)
+- [ ] `--persist-to` en todos los comandos wrangler (ver `BUGS_RESUELTOS.md` #2)
 
 ---
 
