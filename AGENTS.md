@@ -141,6 +141,9 @@ descripcion: 'Supermercado con productos frescos, abastecimiento y productos nac
 - [x] **IDs SQL con comillas simples** en insert_locales.sql
 - [x] **--persist-to** en todos los comandos wrangler (dev.sh)
 - [x] **Deploy a Production** con `--branch=main`
+- [x] **Frontend usa Worker externo** para datos (App.tsx con fetch a workers.dev)
+- [x] **Dominio principal funciona** (google-limache.pages.dev returns 200)
+- [x] **Rama local main** creada para Production
 
 ---
 
