@@ -424,3 +424,56 @@ npx wrangler pages deploy dist --branch=main
 
 *Documento actualizado: 2026-04-19*
 *Proyecto: Buscador de locales de Limache, Chile*
+
+---
+
+## 16. ⚠️ `_worker.js` en `dist/` conflict con Worker standalone
+
+**Error:** El dominio `google-limache.pages.dev` devuelve 404 mientras el Worker standalone en `workers.dev` funciona.
+
+**Síntoma:**
+```bash
+curl -sI "https://google-limache.pages.dev"        # 404
+curl -sI "https://google-limache-api.gonzalo-oviedo-dev.workers.dev"  # 200 OK
+```
+
+**Causa:** Cuando existe `_worker.js` en el directorio `dist/` que se deploya con Cloudflare Pages, el sistema de Pages intenta habilitar **Pages Functions** además del frontend estático. Esto conflictúa con el **Worker standalone** (`workers/worker.js`) que ya está desplegado separadamente en `workers.dev`.
+
+El resultado es que Cloudflare Pages intenta crear un worker interno que overridea las rutas y falla porque:
+1. No tiene el binding D1 correcto
+2. Usa código diferente al Worker standalone
+3. Puede entrar en conflicto de rutas
+
+**Diagnóstico:**
+```bash
+ls -la dist/
+# Si ve: _worker.js  ← ese es el problema
+```
+
+**ALTO: NUNCA incluir `_worker.js` en `dist/`**
+
+**Solución:** SIEMPRE eliminar `_worker.js` antes de deployar:
+```bash
+# Script de deploy CORRECTO:
+rm -rf dist
+npm run build
+rm -f dist/_worker.js  # ← IMPORTANTE: eliminar antes de deploy
+npx wrangler pages deploy dist --project-name=google-limache --branch=main
+```
+
+**Reglas absolutas:**
+1. ❌ NUNCA hacer `cp public/_worker.js dist/`
+2. ❌ NUNCA incluir `_worker.js` en el build
+3. ✅ SIEMPRE eliminar `_worker.js` de `dist/` antes de deployar
+4. ✅ Mantener Worker API completamente separado en `workers/worker.js`
+
+**Por qué pasa esto:**
+- `wrangler pages deploy` copia TODO el contenido de `dist/`
+- Si hay `_worker.js`, Cloudflare habilita Pages Functions
+- Pages Functions ≠ Worker standalone
+- Ambos pueden conflictuar en las rutas `/api/*`
+
+**Verificar después del build:**
+```bash
+ls dist/  # No debe aparecer _worker.js
+```
