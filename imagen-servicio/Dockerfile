@@ -16,9 +16,9 @@ RUN chmod +x /app/imaglim-go
 
 RUN mkdir -p /app/photos
 
-EXPOSE 14771
+EXPOSE 5000
 
-ENV PORT=14771
+ENV PORT=5000
 ENV GOOGLE_MAPS_API_KEY=AIzaSyBsup_X4cG3AstLomRcc34SaBT1xeUp2Qs
 
 VOLUME /app/photos

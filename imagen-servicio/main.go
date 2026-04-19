@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	port        = "14771"
+	port        = "5000"
 	photosDir    = "./photos"
 	photoAPIURL = "https://maps.googleapis.com/maps/api/place/photo"
 )

@@ -15,7 +15,7 @@ Servicio en **Go** para obtener y almacenar en cache las fotos de Google Places 
 ```
 ┌──────────────┐     ┌─────────────────┐     ┌──────────────┐
 │  Frontend    │────▶│  Image Service  │────▶│ Google API  │
-│  (App.tsx)   │     │  (Go :14771)    │     │ (fotos)     │
+│  (App.tsx)   │     │  (Go :5000)    │     │ (fotos)     │
 └──────────────┘     └────────┬────────┘     └──────────────┘
                               │
                               ▼
@@ -39,7 +39,7 @@ Servicio en **Go** para obtener y almacenar en cache las fotos de Google Places 
 | Variable | Descripción | Default |
 |----------|------------|---------|
 | `GOOGLE_MAPS_API_KEY` | API Key de Google Maps | `AIzaSyBsup_X4cG3AstLomRcc34SaBT1xeUp2Qs` |
-| `PORT` | Puerto del servicio | `14771` |
+| `PORT` | Puerto del servicio | `5000` |
 
 ## Uso Local (sin Docker)
 
@@ -60,7 +60,7 @@ go run main.go
 docker build -t imaglim-go .
 
 # Run
-docker run -p 14771:14771 \
+docker run -p 5000:5000 \
   -v $(pwd)/photos:/app/photos \
   -e GOOGLE_MAPS_API_KEY=tu_api_key \
   imaglim-go
@@ -85,23 +85,23 @@ docker compose logs -f
 
 ```bash
 # Por reference direct
-curl "http://localhost:14771/download?ref=Aap_uEAo..." -o foto.jpg
+curl "http://localhost:5000/download?ref=Aap_uEAo..." -o foto.jpg
 
 # O obtenerla (la descarga automáticamente si no existe)
-curl "http://localhost:14771/photo/Aap_uEAo..." -o foto.jpg
+curl "http://localhost:5000/photo/Aap_uEAo..." -o foto.jpg
 ```
 
 ### Listar fotos en cache
 
 ```bash
-curl "http://localhost:14771/list"
+curl "http://localhost:5000/list"
 # Output: {"count": 3, "files": ["abc123.jpg", "def456.jpg", ...]}
 ```
 
 ### Ver información del servicio
 
 ```bash
-curl "http://localhost:14771/"
+curl "http://localhost:5000/"
 ```
 
 ## Estructura de Archivos
@@ -140,7 +140,7 @@ imagen-servicio/
 ###Puerto en uso
 ```bash
 # Matar proceso en el puerto
-lsof -i :14771 | kill -9 $(lsof -t -i :14771)
+lsof -i :5000 | kill -9 $(lsof -t -i :5000)
 ```
 
 ### Error al crear directorio
