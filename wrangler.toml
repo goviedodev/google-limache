@@ -1,0 +1,10 @@
+name = "google-limache-api"
+compatibility_date = "2024-04-18"
+
+[env.production]
+name = "google-limache-api"
+
+[[d1_databases]]
+binding = "locales"
+database_name = "locales-limache"
+database_id = "e31afcac-2816-4ee0-aa02-1c009830cb4a"
