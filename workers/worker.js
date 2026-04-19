@@ -1,9 +1,15 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    
+    const pathname = url.pathname;
+
+    // Endpoint de proxy de fotos: /api/photo/{photo_reference}
+    if (pathname.startsWith('/api/photo/')) {
+      return handlePhotoRequest(pathname, env);
+    }
+
     // Solo manejar /api/*
-    if (!url.pathname.startsWith('/api/')) {
+    if (!pathname.startsWith('/api/')) {
       return new Response('Not Found', { status: 404 });
     }
 
@@ -48,3 +54,46 @@ export default {
     }
   }
 };
+
+// Handler para el proxy de fotos de Google
+async function handlePhotoRequest(pathname, env) {
+  try {
+    // Extraer el photo_reference de la URL
+    // /api/photo/AU_ZVEH... -> AU_ZVEH...
+    const photoReference = pathname.replace('/api/photo/', '').replace('/', '');
+
+    if (!photoReference) {
+      return new Response('Photo reference requerida', { status: 400 });
+    }
+
+    // URL de Google Photos API
+    const googlePhotoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${env.GOOGLE_MAPS_API_KEY}`;
+
+    // Fetch a Google (follow redirect)
+    const response = await fetch(googlePhotoUrl, {
+      redirect: 'follow'
+    });
+
+    if (!response.ok) {
+      return new Response(`Error de Google: ${response.status}`, { status: response.status });
+    }
+
+    // Obtener la imagen
+    const imageData = await response.arrayBuffer();
+
+    // Obtener content-type (default a jpeg si no viene)
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // Retornar la imagen directamente
+    return new Response(imageData, {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400', // Cache por 24 horas
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+
+  } catch (error) {
+    return new Response(`Error: ${error.message}`, { status: 500 });
+  }
+}

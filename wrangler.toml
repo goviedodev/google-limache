@@ -1,6 +1,9 @@
 name = "google-limache-api"
 compatibility_date = "2024-04-18"
 
+[vars]
+GOOGLE_MAPS_API_KEY = "AIzaSyBsup_X4cG3AstLomRcc34SaBT1xeUp2Qs"
+
 [[d1_databases]]
 binding = "locales"
 database_name = "locales-limache"

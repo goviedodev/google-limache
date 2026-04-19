@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react';
 import type { Locales } from './types';
 
+// Constantes
+const API_URL = 'https://google-limache-api.gonzalo-oviedo-dev.workers.dev';
+
+// Función para obtener la URL de la imagen (proxy)
+function getImageUrl(imagenUrl: string | null): string {
+  if (!imagenUrl) return '';
+  
+  // Si ya es una URL completa de Google, extraer el photo_reference
+  const match = imagenUrl.match(/photo_reference=([^&]+)/);
+  if (match && match[1]) {
+    return `${API_URL}/api/photo/${match[1]}`;
+  }
+  return imagenUrl;
+}
+
 function App() {
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState<Locales[]>([]);
@@ -164,7 +179,7 @@ function TarjetaNegocio({ local }: { local: Locales }) {
       {/* Imagen */}
       {local.imagen_url && (
         <img
-          src={local.imagen_url}
+          src={getImageUrl(local.imagen_url)}
           alt={local.imagen_alt || local.nombre}
           className="card-image"
         />
