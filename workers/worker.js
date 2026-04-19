@@ -55,7 +55,7 @@ export default {
   }
 };
 
-// Handler para el proxy de fotos de Google
+// Handler para el proxy de fotos через image-service
 async function handlePhotoRequest(pathname, env) {
   try {
     // Extraer el photo_reference de la URL
@@ -66,16 +66,18 @@ async function handlePhotoRequest(pathname, env) {
       return new Response('Photo reference requerida', { status: 400 });
     }
 
-    // URL de Google Photos API
-    const googlePhotoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${env.GOOGLE_MAPS_API_KEY}`;
+    // URL del image-service (a través de Cloudflare Tunnel)
+    // Si no hay IMAGE_SERVICE_URL, usa el dominio por defecto
+    const imageServiceBase = env.IMAGE_SERVICE_URL || 'https://imagenes.limachelocales.cl';
+    const imageServiceUrl = `${imageServiceBase}/photo/${photoReference}`;
 
-    // Fetch a Google (follow redirect)
-    const response = await fetch(googlePhotoUrl, {
+    // Fetch al image-service (a través del tunnel)
+    const response = await fetch(imageServiceUrl, {
       redirect: 'follow'
     });
 
     if (!response.ok) {
-      return new Response(`Error de Google: ${response.status}`, { status: response.status });
+      return new Response(`Error del image-service: ${response.status}`, { status: response.status });
     }
 
     // Obtener la imagen
