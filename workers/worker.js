@@ -1,7 +1,35 @@
+// Agregar CORS headers a todas las respuestas
+function corsResponse(body, status = 200) {
+  return new Response(body, {
+    status,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
+    
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return corsResponse('', 204);
+    }
 
     // Endpoint de proxy de fotos: /api/photo/{photo_reference}
     if (pathname.startsWith('/api/photo/')) {
@@ -10,7 +38,7 @@ export default {
 
     // Solo manejar /api/*
     if (!pathname.startsWith('/api/')) {
-      return new Response('Not Found', { status: 404 });
+      return corsResponse(JSON.stringify({ error: 'Not Found' }), 404);
     }
 
     const query = url.searchParams.get('q') || '';
@@ -42,14 +70,14 @@ export default {
         const stmt = env.locales.prepare(sql);
         const results = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
 
-        return Response.json(results);
+        return jsonResponse(results);
       }
 
-      return Response.json({ error: 'Base de datos no configurada', keys: Object.keys(env || {}) }, { status: 500 });
+      return jsonResponse({ error: 'Base de datos no configurada', keys: Object.keys(env || {}) }, 500);
     } catch (error) {
-      return Response.json(
+      return jsonResponse(
         { error: 'Error al buscar locales', details: String(error) },
-        { status: 500 }
+        500
       );
     }
   }
@@ -63,7 +91,7 @@ async function handlePhotoRequest(pathname, env) {
     const photoReference = pathname.replace('/api/photo/', '').replace('/', '');
 
     if (!photoReference) {
-      return new Response('Photo reference requerida', { status: 400 });
+      return new Response('Photo reference requerida', { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 
     // URL del image-service (a través de Cloudflare Tunnel)
@@ -77,7 +105,7 @@ async function handlePhotoRequest(pathname, env) {
     });
 
     if (!response.ok) {
-      return new Response(`Error del image-service: ${response.status}`, { status: response.status });
+      return new Response(`Error del image-service: ${response.status}`, { status: response.status, headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 
     // Obtener la imagen
@@ -96,6 +124,6 @@ async function handlePhotoRequest(pathname, env) {
     });
 
   } catch (error) {
-    return new Response(`Error: ${error.message}`, { status: 500 });
+    return new Response(`Error: ${error.message}`, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 }

@@ -1,8 +1,10 @@
-name = "google-limache-api"
+name = "google-limache"
 compatibility_date = "2024-04-18"
+pages_build_output_dir = "./public"
 
 [vars]
 GOOGLE_MAPS_API_KEY = "AIzaSyBsup_X4cG3AstLomRcc34SaBT1xeUp2Qs"
+API_URL = "https://google-limache-api.gonzalo-oviedo-dev.workers.dev"
 
 [[d1_databases]]
 binding = "locales"

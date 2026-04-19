@@ -1,0 +1,14 @@
+name = "google-limache-api"
+compatibility_date = "2024-04-18"
+
+[vars]
+GOOGLE_MAPS_API_KEY = "AIzaSyBsup_X4cG3AstLomRcc34SaBT1xeUp2Qs"
+IMAGE_SERVICE_URL = "https://imagenes.limachelocales.cl"
+
+[[d1_databases]]
+binding = "locales"
+database_name = "locales-limache"
+database_id = "e31afcac-2816-4ee0-aa02-1c009830cb4a"
+
+main = "worker.js"
+compatibility_flags = ["unsafe_eval"]

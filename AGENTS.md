@@ -20,6 +20,9 @@ cd /home/goviedo/proyectos/limache/google-limache
 ./scripts/dev.sh
 ```
 
+**⏱️ Regla de Deploy:**
+> Después de hacer un `wrangler pages deploy` o `wrangler deploy`, **SIEMPRE esperar al menos 1 minuto** antes de verificar el resultado. Cloudflare Pages toma ~60 segundos en propagar el deploy y activarlo. Verificar antes puede mostrar "Deployment Not Found" o la build anterior.
+
 ---
 
 ## 🔴 Issues Críticos (Fix inmediato)
