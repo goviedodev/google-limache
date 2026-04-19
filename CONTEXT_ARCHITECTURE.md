@@ -5,16 +5,17 @@
 | Campo | Valor |
 |-------|-------|
 | **Proyecto** | google-limache |
-| **Tipo** | Cloudflare Pages + Cloudflare Workers (API) + D1 Database |
+| **Tipo** | Cloudflare Pages + Cloudflare Workers (API) + D1 Database + Image Service |
 | **Ubicación** | `/home/goviedo/proyectos/limache/google-limache` |
 | **URL Producción** | https://google-limache.pages.dev |
-| **URL Deploys** | https://d91cc776.google-limache.pages.dev (último) |
+| **URL API** | https://google-limache-api.gonzalo-oviedo-dev.workers.dev |
+| **URL Image Service** | https://imagenes.limachelocales.cl |
 
 ---
 
 ## 🔐 Cuentas Cloudflare
 
-### Cuenta Principal (Usada para este deploy)
+### Cuenta Principal
 | Campo | Valor |
 |-------|-------|
 | **Email** | gonzalo.oviedo.dev@gmail.com |
@@ -28,9 +29,60 @@
 | **Database ID** | `e31afcac-2816-4ee0-aa02-1c009830cb4a` |
 | **Región** | ENAM (East North America) |
 
+### Cloudflare Tunnel
+| Campo | Valor |
+|-------|-------|
+| **Nombre** | imagen-service |
+| **Dominio** | imagenes.limachelocales.cl |
+| **Puerto interno** | 5000 |
+| **Tipo** | Zero Trust (sin exposición a internet) |
+
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## 🏗️ Arquitectura Completa
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Cloudflare Zero Trust                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─────────────────────┐     ┌──────────────────────────┐ │
+│  │  Frontend          │     │  API (Worker)            │     │
+│  │  pages.dev        │────▶│  workers.dev            │     │
+│  │  (React + Vite)   │     │  (D1 + Photo Proxy)      │     │
+│  └─────────────────────┘     └───────────┬──────────────┘ │
+│                                              │               │
+├──────────────────────────────────────────────┼───────────────┤
+│                                              │               │
+│     ┌────────────────────────────────────────┼────────────────┤
+│     │                                        ▼                │
+│     │     ┌─────────────────────────────────────────┐        │
+│     │     │  imagenes.limachelocales.cl            │        │
+│     │     │  (Cloudflare Tunnel - Zero Trust)     │        │
+│     │     │                                         │        │
+│     │     │  ┌─────────────────────────────────┐  │        │
+│     │     │  │  Contenedor Docker (VPS)        │  │        │
+│     │     │  │  ┌─────────────────────────┐   │  ��        │
+│     │     │  │  │ cloudflared (tunnel)│   │  │        │
+│     │     │  │  │         │          │   │  │        │
+│     │     │  │  │  ┌──────┴──────┐│   │  │        │
+│     │     │  │  │  │ Go Service ││   │──┼────┼───▶ Google Places API
+│     │     │  │  │  │ :5000    ││   │  │    │        │
+│     │     │  │  │  └──────────┘   │  │    │        │
+│     │     │  │  └─────────────────────────┘   │        │
+│     │     │  │         │                        │        │
+│     │     │  │         ▼                        │        │
+│     │     │  │  ./photos/ (storage 57 fotos)   │        │
+│     │     │  └─────────────────────────────────┘        │
+│     │     └─────────────────────────────────────────────┘
+│     │                                                        │
+│     └────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Estructura del Proyecto
 
 ```
 google-limache/
@@ -38,38 +90,122 @@ google-limache/
 │   ├── index.html
 │   ├── favicon.svg
 │   └── assets/
-│       ├── index-*.js
-│       └── index-*.css
-│
-├── functions/                 # Cloudflare Pages Functions (API)
-│   └── api/
-│       └── locales/
-│           └── index.js       # Endpoint GET /api/locales
 │
 ├── src/                       # Código fuente React
-│   ├── App.tsx               # Componente principal + datos fallback
+│   ├── App.tsx               # Componente principal
 │   ├── types.ts              # Interfaces TypeScript
 │   ├── main.tsx              # Entry point
 │   └── index.css             # Estilos
 │
-├── schema.sql                # Schema D1 (locales + categorias)
-├── wrangler.toml             # Configuración Cloudflare
-├── vite.config.ts            # Configuración Vite
+├── functions/                 # Cloudflare Pages Functions (deprecated)
+│   └── api/
+│       └── locales/
+│           └── index.js
+│
+├── workers/                   # Cloudflare Worker API
+│   └── worker.js            # API con D1 + proxy de fotos
+│
+├── imagen-servicio/           # Image Service (Go + Cloudflare Tunnel)
+│   ├── main.go              # Código fuente Go
+│   ├── Dockerfile          # Imagen Docker
+│   ├── docker-compose.yml   # Orquestación
+│   ├── entrypoint.sh       # Inicia cloudflared + Go
+│   ├── photos/            # Storage de fotos (57 fotos cacheadas)
+│   └── README.md          # Documentación
+│
+├── scripts/
+│   ├── dev.sh             # Script de desarrollo local
+│   ├── preload_photos.py  # Script para pre-cargar fotos
+│   └── insert_locales.sql  # SQL con 69 registros
+│
+├── schema.sql               # Schema D1
+├── wrangler.toml           # Configuración Cloudflare
+├── vite.config.ts          # Configuración Vite
 └── package.json
 ```
+
+---
+
+## 🌐 API Endpoints
+
+### Worker: GET /api/locales
+Busca locales en D1 con filtros.
+
+**Query Parameters:**
+- `q` - Término de búsqueda
+- `categoria` - Filtrar por categoría
+
+**Ejemplo:**
+```bash
+curl "https://google-limache-api.gonzalo-oviedo-dev.workers.dev/api/locales?q=cafe"
+```
+
+### Worker: GET /api/photo/{photo_reference}
+Proxy de fotos que rutea al image-service.
+
+**Ejemplo:**
+```bash
+curl "https://google-limache-api.gonzalo-oviedo-dev.workers.dev/api/photo/AU_ZVEH..."
+```
+
+---
+
+## 🖼️ Image Service
+
+### Endpoints locales (dentro del contenedor)
+
+| Endpoint | Descripción |
+|----------|-------------|
+| `GET /` | Información del servicio |
+| `GET /list` | Lista fotos en storage |
+| `GET /photo/<ref>` | Obtiene foto (descarga si no existe) |
+| `GET /download?ref=<ref>` | Descarga explícitamente desde Google |
+
+### Variables de Entorno
+
+| Variable | Descripción |
+|----------|-------------|
+| `CLOUDFLARED_TOKEN` | Token del Cloudflare Tunnel |
+| `GOOGLE_MAPS_API_KEY` | API Key de Google Maps |
+| `PORT` | Puerto interno (5000) |
+
+### Despliegue del Image Service
+
+```bash
+# En VPS
+cd ~/servicios/limache/google-limache/imagen-servicio
+
+# Corregir permisos del directorio photos/
+sudo chown -R $(id -u):$(id -g) ./photos/
+
+# Build y run
+docker compose build
+CLOUDFLARED_TOKEN="tu_token" docker compose up -d
+```
+
+### Configuración del Tunnel
+
+En **Cloudflare Dashboard → Zero Trust → Network → Tunnels**:
+
+| Campo | Valor |
+|-------|-------|
+| **Hostname** | `imagenes.limachelocales.cl` |
+| **Service** | `http://localhost:5000` |
+| **Port** | `5000` |
 
 ---
 
 ## 📊 Base de Datos D1
 
 ### Tabla: `locales` (69 registros)
+
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | id | TEXT PRIMARY KEY | Identificador (loc-001 a loc-069) |
 | nombre | TEXT | Nombre del negocio |
 | descripcion | TEXT | Descripción |
-| categoria | TEXT | Categoría (Restaurante, Tienda, etc.) |
-| imagen_url | TEXT | URL de imagen (vacío en fallback) |
+| categoria | TEXT | Categoría |
+| imagen_url | TEXT | URL de Google Photos (57 tienen foto) |
 | imagen_titulo | TEXT | Título de imagen |
 | imagen_alt | TEXT | Alt text de imagen |
 | indicaciones | TEXT | Indicaciones Google Maps |
@@ -81,126 +217,90 @@ google-limache/
 | horario | TEXT | Horario de atención |
 | website | TEXT | Sitio web |
 
-### Tabla: `categorias` (9 registros)
-- Comida, Tienda, Restaurante, Servícia, Ferretería, Supermercado, Farmacia, Gimnasio, Bar
-
 ---
 
-## 🌐 API Endpoints
+## 📋 Scripts Útiles
 
-### GET /api/locales
-Busca locales en D1 con filtros opcionales.
+### Pre-cargar fotos al storage
 
-**Query Parameters:**
-- `q` - Término de búsqueda (busca en nombre, descripción, categoría, dirección)
-- `categoria` - Filtrar por categoría
+```bash
+# Ejecutar script
+python3 scripts/preload_photos.py
 
-**Respuesta:**
-```json
-{
-  "results": [...],
-  "success": true,
-  "meta": {...}
-}
-```
-
-**Archivo:** `functions/api/locales/index.js`
-
----
-
-## ⚙️ Configuración wrangler.toml
-
-```toml
-name = "google-limache"
-compatibility_date = "2024-04-18"
-pages_build_output_dir = "public"
-
-[vars]
-APP_NAME = "Buscador de Locales Limache"
-APP_DESCRIPTION = "Buscador de negocios y locales en Limache, Chile"
-
-[[d1_databases]]
-binding = "locales"
-database_name = "locales-limache"
-database_id = "e31afcac-2816-4ee0-aa02-1c009830cb4a"
+# Output típico:
+# ✅ Total locales: 69
+# 🖼️ Con foto: 57
+# 📥 Descargando fotos al storage...
+# ✅ Descargadas: 57
+# ❌ Errores: 0
 ```
 
 ---
 
 ## 🚀 Comandos de Deploy
 
-### Desarrollo Local
-```bash
-# Build del frontend
-npx vite build
-
-# Copiar dist a public
-cp -r dist public
-
-# Probar local con wrangler
-npx wrangler pages dev public --port 8787
-```
-
-### Deploy a Producción
+### Frontend + Worker
 ```bash
 cd /home/goviedo/proyectos/limache/google-limache
 
-# 1. Build
+# 1. Build frontend
 npx vite build
 
 # 2. Copiar a public
 rm -rf public && cp -r dist public
 
-# 3. Deploy a Production (rama main)
+# 3. Deploy a Production
 npx wrangler pages deploy public --project-name=google-limache --branch=main
 
-# 4. Deploy Worker API (si hubo cambios en workers/worker.js)
+# 4. Deploy Worker API
 npx wrangler deploy workers/worker.js --name google-limache-api
 ```
 
-### Gestionar D1 Remoto
+### Image Service (VPS)
 ```bash
-# Ver registros
-npx wrangler d1 execute locales-limache --remote --command "SELECT COUNT(*) FROM locales"
+# En el VPS
+cd ~/servicios/limache/google-limache/imagen-servicio
 
-# Ejecutar SQL desde archivo
-npx wrangler d1 execute locales-limache --remote --file=archivo.sql
+# Build y run
+docker compose build
+CLOUDFLARED_TOKEN="..." docker compose up -d
 
-# Ejecutar SQL inline
-npx wrangler d1 execute locales-limache --remote --command "SELECT * FROM locales LIMIT 5"
+# Verificar
+curl https://imagenes.limachelocales.cl/
+curl https://imagenes.limachelocales.cl/list
 ```
 
 ---
 
-## 🔑 Variables de Entorno
+## 🔧 Troubleshooting
 
-| Variable | Descripción |
-|----------|-------------|
-| `GOOGLE_MAPS_API_KEY` | API Key de Google Maps (para fotos) |
+### Fotos no se guardan en storage
 
----
+**Síntoma:** `count: 0` en `/list`
 
-## 📝 Issues Conocidos
+**Causa:** Permisos del directorio `photos/` son de root
 
-### CRÍTICO - SQL Injection potencial
-**Archivo:** `functions/api/locales/index.js:17`
-El parámetro de búsqueda se usa directamente en `LIKE ?` pero no se sanitizan caracteres especiales como `%` y `_`.
+**Solución:**
+```bash
+sudo chown -R $(id -u):$(id -g) ./photos/
+```
 
-### MEDIO - Fallback usa datos old
-**Archivo:** `src/App.tsx`
-Los 69 negocios reales están en D1, pero el fallback en frontend tiene datos hardcodeados que pueden estar desactualizados.
+### Tunnel no conecta
 
-### INFO - Wrangler desactualizado
-Versión 3.114.17 instalada, disponible 4.83.0
+**Síntoma:** Error de conexión al dominio
 
----
+**Solución:**
+1. Verificar que el token esté configurado
+2. Revisar logs: `docker compose logs`
+3. Verificar Cloudflare Dashboard → Tunnels
 
-## 🔗 Recursos
+### Worker no puede reaching image-service
 
-- [Cloudflare Pages](https://pages.cloudflare.com)
-- [D1 Database](https://developers.cloudflare.com/d1/)
-- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
+**Síntoma:** Error 500 al pedir fotos
+
+**Solución:**
+1. Verificar que el tunnel tenga el hostname configurado
+2. Probar: `curl https://imagenes.limachelocales.cl/`
 
 ---
 
@@ -211,45 +311,19 @@ Versión 3.114.17 instalada, disponible 4.83.0
 | 2026-04-18 | Creación del proyecto |
 | 2026-04-18 | Deploy inicial a google-limache.pages.dev |
 | 2026-04-18 | Creación D1 locales-limache con 69 registros |
+| 2026-04-19 | Agregar Image Service con Cloudflare Tunnel |
+| 2026-04-19 | Pre-cargar 57 fotos al storage |
 
 ---
 
-## 🐛 Errores Resueltos
+## 🔗 Recursos
 
-> **Todos los errores resueltos fueron movidos a `BUGS_RESUELTOS.md`**
-> **LEER `BUGS_RESUELTOS.md` ANTES DE CONTINUAR TRABAJANDO EN ESTE PROYECTO.**
-
-Errores documentados:
-1. D1 `.all()` requiere `await`
-2. IDs sin comillas en SQL causan SQLITE_ERROR
-3. `wrangler pages dev` y `d1 execute` usan DBs diferentes sin `--persist-to`
-4. Wrangler `--file` flag no funciona correctamente con remoto
-5. Functions de Pages no se reconocen en deploy
-6. D1 Database no vinculada a Pages Functions
-7. Wrangler desactualizado
-8. Multi-line SQL parsing issue
-9. `_worker.js` con export incorrecto
-10. Deploy a Preview en vez de Production
-11. Worker API también necesita `await` en D1
-
-Ver detalles y soluciones en [`BUGS_RESUELTOS.md`](./BUGS_RESUELTOS.md)
-
----
-
-## 📋 Checklist Pre-Deploy
-
-Antes de hacer deploy a producción, verificar:
-
-- [ ] `npx vite build` ejecutado
-- [ ] `dist/` copiado a `public/`
-- [ ] `wrangler.toml` tiene `pages_build_output_dir = "public"`
-- [ ] `functions/` existe en raíz con `index.js`
-- [ ] D1 tiene `database_id` correcto
-- [ ] Wrangler actualizado (`wrangler@latest`)
-- [ ] Tests locales pasan
-- [ ] `await` en todas las llamadas D1 (ver `BUGS_RESUELTOS.md` #0)
-- [ ] IDs SQL con comillas simples (ver `BUGS_RESUELTOS.md` #1)
-- [ ] `--persist-to` en todos los comandos wrangler (ver `BUGS_RESUELTOS.md` #2)
+- [Cloudflare Pages](https://pages.cloudflare.com)
+- [D1 Database](https://developers.cloudflare.com/d1/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
+- [Google Places API](https://developers.google.com/maps/documentation/places/web-service)
 
 ---
 
