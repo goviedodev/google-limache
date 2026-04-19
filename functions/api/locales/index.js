@@ -4,9 +4,6 @@ export async function onRequest(context) {
   const query = url.searchParams.get('q') || '';
   const categoria = url.searchParams.get('categoria') || '';
 
-  console.log('DEBUG: env.locales =', env.locales);
-  console.log('DEBUG: env =', JSON.stringify(Object.keys(env || {})));
-
   try {
     if (env.locales) {
       let sql = 'SELECT * FROM locales';
@@ -30,21 +27,14 @@ export async function onRequest(context) {
 
       sql += ' ORDER BY nombre';
 
-      console.log('DEBUG: sql =', sql);
-      console.log('DEBUG: params =', params);
-
       const stmt = env.locales.prepare(sql);
-      const results = params.length > 0 ? stmt.bind(...params).all() : stmt.all();
-
-      console.log('DEBUG: results =', JSON.stringify(results));
+      const results = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
 
       return Response.json(results);
     }
 
-    console.log('DEBUG: env.locales is undefined');
     return Response.json({ error: 'Base de datos no configurada' }, { status: 500 });
   } catch (error) {
-    console.log('DEBUG: error =', error);
     return Response.json(
       { error: 'Error al buscar locales', details: String(error) },
       { status: 500 }

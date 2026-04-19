@@ -215,7 +215,67 @@ Versión 3.114.17 instalada, disponible 4.83.0
 
 Esta sección documenta los errores críticos encontrados durante el desarrollo y deploy, con las soluciones aplicadas. **LEER ANTES DE CONTINUAR TRABAJANDO EN ESTE PROYECTO.**
 
-### 1. Wrangler `--file` flag no funciona correctamente
+### 0. ⚠️ D1 `.all()` requiere `await` - BUG MUY IMPORTANTE
+
+**Error:**
+La API retorna `{}` (objeto vacío) sin datos, sin errores.
+
+**Causa:** `stmt.all()` y `stmt.bind(...params).all()` retornan una **Promise**. Sin `await`, se retorna la Promise sin resolver, que se serializa como `{}`.
+
+**Código INCORRECTO:**
+```javascript
+const results = params.length > 0 ? stmt.bind(...params).all() : stmt.all();
+return Response.json(results);
+```
+
+**Código CORRECTO:**
+```javascript
+const results = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+return Response.json(results);
+```
+
+**Regla:** SIEMPRE usar `await` con operaciones D1 (`.all()`, `.run()`, `.first()`, `.raw()`).
+
+---
+
+### 1. IDs sin comillas en SQL causan error SQLITE_ERROR
+
+**Error:**
+```
+no such column: loc at offset 183: SQLITE_ERROR
+```
+
+**Causa:** Los IDs tipo `loc-001` sin comillas son interpretados como `loc` menos `001` (operador `-`), no como un string.
+
+**Solución:** SIEMPRE poner comillas simples alrededor de IDs string:
+```sql
+-- INCORRECTO:
+VALUES (loc-001, 'Nombre', ...);
+
+-- CORRECTO:
+VALUES ('loc-001', 'Nombre', ...);
+```
+
+---
+
+### 2. `wrangler pages dev` y `wrangler d1 execute` usan DBs diferentes sin `--persist-to`
+
+**Error:**
+Los datos insertados con `wrangler d1 execute --local` no aparecen en `wrangler pages dev`.
+
+**Causa:** `wrangler d1 execute --local` y `wrangler pages dev` pueden usar directorios de persistencia diferentes por defecto.
+
+**Solución:** Usar `--persist-to` en TODOS los comandos para compartir la misma DB:
+```bash
+# Siempre usar el mismo --persist-to en TODOS los comandos
+npx wrangler d1 execute locales-limache --local --persist-to .wrangler/state --file=schema.sql
+npx wrangler d1 execute locales-limache --local --persist-to .wrangler/state --file=datos.sql
+npx wrangler pages dev public --port 8787 --d1 locales --persist-to .wrangler/state
+```
+
+---
+
+### 3. Wrangler `--file` flag no funciona correctamente
 
 **Error:**
 ```

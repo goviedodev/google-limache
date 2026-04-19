@@ -17,29 +17,40 @@
 **Para probar localmente, el usuario ejecuta:**
 ```bash
 cd /home/goviedo/proyectos/limache/google-limache
-rm -rf .wrangler
-rm -f public/_worker.js
-npx wrangler pages dev public --port 8787 --d1 locales --ip 0.0.0.0
+./scripts/dev.sh
 ```
 
 ---
 
 ## 🔴 Issues Críticos (Fix inmediato)
 
-### 1. [CRÍTICO] SQL Injection potencial en API
+### 1. [CRÍTICO] ⚠️ SIEMPRE usar `await` con D1
+**Archivo**: `functions/api/locales/index.js`
+**Severidad**: 🔴🔴🔴 CRÍTICO
+**Problema**: `stmt.all()` y `stmt.bind().all()` retornan Promises. Sin `await`, la API retorna `{}` vacío.
+**Regla**: SIEMPRE usar `await` con operaciones D1 (`.all()`, `.run()`, `.first()`, `.raw()`)
+```javascript
+// ❌ INCORRECTO - retorna Promise vacía como {}
+const results = stmt.all();
+
+// ✅ CORRECTO - retorna datos reales
+const results = await stmt.all();
+```
+
+### 2. [CRÍTICO] SQL IDs sin comillas causan SQLITE_ERROR
+**Archivo**: `scripts/insert_locales.sql`
+**Severidad**: 🔴
+**Problema**: Los IDs tipo `loc-001` sin comillas son interpretados como `loc - 001` (operador resta).
+**Regla**: SIEMPRE usar comillas simples en IDs string: `'loc-001'` no `loc-001`
+
+### 3. [CRÍTICO] SQL Injection potencial en API
 **Archivo**: `functions/api/locales/index.ts:17`
 **Severidad**: 🔴
-**Problema**: Los parámetros de búsqueda se insertan con `LIKE ?` pero no se sanitizan. Aunque se usa prepared statement, el resultado del query se filtra con `%${query}%`.
+**Problema**: Los parámetros de búsqueda se insertan con `LIKE ?` pero no se sanitizan.
 **Recomendación**: Sanitizar el input antes de insertarlo en el query:
 ```typescript
 const sanitizedQuery = query.replace(/[%_]/g, '\\$&'); // escapar %
 ```
-
-### 2. [CRÍTICO] Schema desactualizado
-**Archivo**: `schema.sql`
-**Severidad**: 🔴
-**Problema**: El schema.sql NO incluye los campos `rating`, `horario`, `website` que fueron agregados al insert_locales.sql. La tabla fue actualizada en memoria pero el schema no refleja esto.
-**Recomendación**: El schema.sql ya fue actualizado en pasos anteriores. Verificar que el archivo en disco tenga los campos correctos.
 
 ---
 
