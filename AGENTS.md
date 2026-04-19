@@ -137,6 +137,10 @@ descripcion: 'Supermercado con productos frescos, abastecimiento y productos nac
 - [x] **69 negocios insertados en D1 remoto** (usando Python + sqlite3 directo, no `--file`)
 - [x] **API deployada como Worker standalone** (Pages Functions no funcionan bien con D1)
 - [x] **Wrangler actualizado a v4.83.0**
+- [x] **await en D1 queries** (functions/api/locales/index.js + workers/worker.js)
+- [x] **IDs SQL con comillas simples** en insert_locales.sql
+- [x] **--persist-to** en todos los comandos wrangler (dev.sh)
+- [x] **Deploy a Production** con `--branch=main`
 
 ---
 
@@ -164,18 +168,21 @@ google-limache/
 │   ├── index.html
 │   ├── favicon.svg
 │   └── assets/
-├── functions/                 # Cloudflare Pages Functions (no usado para API)
+├── functions/                 # Cloudflare Pages Functions (local dev)
 │   └── api/
 │       └── locales/
+│           └── index.js       # API local con await corregido
+├── workers/
+│   └── worker.js             # Cloudflare Worker API (producción)
 ├── src/
 │   ├── App.tsx              # Componente principal + datos fallback
 │   ├── main.tsx            # Entry point
 │   ├── types.ts            # TypeScript interfaces
 │   └── index.css           # Estilos (Google-like)
 ├── scripts/
+│   ├── dev.sh                # Script desarrollo local
 │   ├── obtener_google_places.py  # Script para obtener datos de Google
 │   └── insert_locales.sql        # SQL con 69 negocios reales
-├── worker.js                 # Cloudflare Worker API (USA D1)
 ├── wrangler.toml            # Configuración Cloudflare (Worker + D1)
 ├── schema.sql              # Schema D1 (actualizado con rating, horario, website)
 └── package.json            # Dependencias
@@ -194,7 +201,8 @@ google-limache/
 
 ## 🔗 Recursos y Documentación
 
-- **CONTEXT_ARCHITECTURE.md** - Arquitectura completa, cuentas, y errores documentados
+- **BUGS_RESUELTOS.md** - Errores encontrados y soluciones (LEER SIEMPRE ANTES DE CODIFICAR)
+- **CONTEXT_ARCHITECTURE.md** - Arquitectura completa, cuentas y configuración
 - **Cloudflare Pages**: https://pages.cloudflare.com
 - **D1 Database**: https://developers.cloudflare.com/d1/
 - **Cloudflare Workers**: https://developers.cloudflare.com/workers/

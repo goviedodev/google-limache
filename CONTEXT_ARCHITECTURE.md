@@ -151,8 +151,11 @@ npx vite build
 # 2. Copiar a public
 rm -rf public && cp -r dist public
 
-# 3. Deploy
-npx wrangler pages deploy public --project-name=google-limache
+# 3. Deploy a Production (rama main)
+npx wrangler pages deploy public --project-name=google-limache --branch=main
+
+# 4. Deploy Worker API (si hubo cambios en workers/worker.js)
+npx wrangler deploy workers/worker.js --name google-limache-api
 ```
 
 ### Gestionar D1 Remoto
@@ -226,7 +229,8 @@ Errores documentados:
 7. Wrangler desactualizado
 8. Multi-line SQL parsing issue
 9. `_worker.js` con export incorrecto
-10. Proyecto Workers vs Pages
+10. Deploy a Preview en vez de Production
+11. Worker API también necesita `await` en D1
 
 Ver detalles y soluciones en [`BUGS_RESUELTOS.md`](./BUGS_RESUELTOS.md)
 

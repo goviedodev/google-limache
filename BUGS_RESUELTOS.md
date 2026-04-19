@@ -234,5 +234,193 @@ export default {
 
 ---
 
-*Documento creado: 2026-04-19*
+## 10. Deploy a Preview en vez de Production
+
+**Error:** `wrangler pages deploy` sube el deploy al ambiente **Preview** en vez de **Production**.
+
+**Causa:** Cloudflare Pages determina el ambiente según la rama Git:
+- Rama `main` → **Production**
+- Cualquier otra rama → **Preview**
+
+El proyecto usa rama `master`, que Cloudflare no reconoce como rama de producción.
+
+**Solución:** Usar `--branch=main` para deployar a Production:
+```bash
+# INCORRECTO - sube a Preview si la rama no es "main":
+npx wrangler pages deploy public --project-name=google-limache
+
+# CORRECTO - fuerza deploy a Production:
+npx wrangler pages deploy public --project-name=google-limache --branch=main
+```
+
+**Verificar el ambiente:**
+```bash
+# Listar deployments y ver Environment
+npx wrangler pages deployment list --project-name=google-limache
+```
+
+**Resultado esperado:**
+- `Environment: Production` + `Branch: main` → carga en `google-limache.pages.dev`
+- `Environment: Preview` + `Branch: master` → carga en `<id>.google-limache.pages.dev`
+
+---
+
+## 11. Worker API también necesita `await` en D1
+
+**Error:** La API Worker en producción retorna `{}` vacío.
+
+**Causa:** Mismo bug que en `functions/api/locales/index.js`. El archivo `workers/worker.js` también tenía `stmt.all()` sin `await`.
+
+**Solución:** Ambos archivos necesitan `await`:
+- `functions/api/locales/index.js` → ya corregido
+- `workers/worker.js` → corregido y redeployado
+
+**Regla:** Cada vez que se modifica `workers/worker.js`, hay que redeployar:
+```bash
+npx wrangler deploy workers/worker.js --name google-limache-api
+```
+
+---
+
+---
+
+## 12. `_worker.js` aparece inexplicablemente en `dist/` causando deploy roto
+
+**Error:** El dominio `google-limache.pages.dev` devuelve 404 mientras subdomains específicos funcionan.
+
+**Síntoma:**
+```bash
+curl -sI "https://c9c69704.google-limache.pages.dev"  # 200 OK
+curl -sI "https://google-limache.pages.dev"       # 404
+```
+
+**Causa:** Hay un archivo `_worker.js` en el directorio `dist/` que se copia desde `public/_worker.js` o desde otra ubicación. Cuando existe `_worker.js` en el directorio de deploy, Cloudflare Pages intenta habilitar Pages Functions, pero sin el binding de D1 correcto, todo falla.
+
+**Diagnóstico:**
+```bash
+ls -la dist/  # Si aparece _worker.js aquí, ese es el problema
+```
+
+**Solución:**
+1. Eliminar manualmente `_worker.js` del directorio de build antes de deployar:
+```bash
+rm dist/_worker.js
+npx wrangler pages deploy dist --branch=main
+```
+
+2. O asegurar que el build sea limpio:
+```bash
+rm -rf dist
+npm run build
+rm -f dist/_worker.js  #por seguridad
+npx wrangler pages deploy dist --branch=main
+```
+
+**Nota:** Este problema puede originarse porque wrangler copia archivos de más durante el build. Siempre verificar el contenido de `dist/` antes de deployar.
+
+---
+
+## 13. Rama Git incorrecta causa deploy a Preview en vez de Production
+
+**Error:** El deploy aparece como "Preview" en Cloudflare Dash y el dominio principal no funciona.
+
+**Causa:** El proyecto usaba rama `master` en vez de `main`:
+```bash
+git branch -a
+# * master
+```
+
+Cloudflare mapea:
+- `main` → Production → `*.pages.dev`
+- `master` o cualquier otra → Preview → `<id>.pages.dev`
+
+**Solución:**
+1. Crear la rama `main` locally:
+```bash
+git checkout -b main
+```
+
+2. Deployar especificando la rama:
+```bash
+npx wrangler pages deploy dist --branch=main
+```
+
+3. Verificar en Cloudflare Dash que el deployment muestre:
+   - `Environment: Production`
+   - `Branch: main`
+
+**Verificar:**
+```bash
+npx wrangler pages deployment list --project-name=google-limache
+```
+
+Debería mostrar `main` en la columna `Branch` y `Production` en `Environment`.
+
+---
+
+## 14. Arquitectura recomendada: Worker externo + Pages estático
+
+**Problema:** Pages Functions con D1 tiene problemas de binding en producción.
+
+**Solución confirmada:**
+1. **Frontend** → Cloudflare Pages (archivos estáticos)
+2. **API** → Cloudflare Worker standalone (independiente)
+
+**Ventajas:**
+- Worker standalone tiene binding D1 más estable
+- Frontend es solo estático, más rápido y confiable
+- Frontend puede llamar a Worker externo via fetch
+
+**Configuración en App.tsx:**
+```typescript
+const API_URL = 'https://google-limache-api.gonzalo-oviedo-dev.workers.dev';
+const response = await fetch(`${API_URL}/api/locales?q=${encodeURIComponent(termino)}`);
+```
+
+**Deploy separación:**
+```bash
+# Frontend (Pages)
+npm run build
+rm -f dist/_worker.js
+npx wrangler pages deploy dist --branch=main
+
+# API (Worker)
+npx wrangler deploy workers/worker.js --name google-limache-api
+```
+
+**URLs finales:**
+- Frontend: `https://google-limache.pages.dev`
+- API: `https://google-limache-api.gonzalo-oviedo-dev.workers.dev`
+
+---
+
+## 15. Dominio principal de Pages returns 404 pero subdomains funcionan
+
+**Síntoma:**Algunos subdomains `<id>.google-limache.pages.dev` funcionan (200 OK) pero el dominio principal `google-limache.pages.dev` devuelve 404.
+
+**Causa raíz:** Este es un bug conocido de Cloudflare Pages que ocurre cuando:
+1. Hay deployments corruptos o incompletos en el proyecto
+2. La última deployación exitosa no está asociada correctamente al dominio principal
+3. Existe un `_worker.js` problemático en el build
+
+**Solución probada:**
+1. Limpiar el build completamente:
+```bash
+rm -rf dist
+npm run build
+rm -f dist/_worker.js
+```
+
+2. Deployar a rama `main` (Production):
+```bash
+npx wrangler pages deploy dist --branch=main
+```
+
+3. Esperar 30-60 segundos y probar el dominio principal
+
+**Si persiste:** Puede ser necesario esperar más tiempo o crear un nuevo proyecto en Cloudflare Pages.
+
+---
+
+*Documento actualizado: 2026-04-19*
 *Proyecto: Buscador de locales de Limache, Chile*

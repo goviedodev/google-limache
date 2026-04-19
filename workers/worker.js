@@ -34,7 +34,7 @@ export default {
         sql += ' ORDER BY nombre';
 
         const stmt = env.locales.prepare(sql);
-        const results = params.length > 0 ? stmt.bind(...params).all() : stmt.all();
+        const results = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
 
         return Response.json(results);
       }

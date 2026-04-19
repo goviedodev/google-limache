@@ -14,8 +14,9 @@ function App() {
     const termino = query || busqueda;
 
     try {
-      // Intentar obtener datos de la API
-      const response = await fetch(`/api/locales?q=${encodeURIComponent(termino)}`);
+      // Intentar obtener datos de la API del Worker
+      const API_URL = 'https://google-limache-api.gonzalo-oviedo-dev.workers.dev';
+      const response = await fetch(`${API_URL}/api/locales?q=${encodeURIComponent(termino)}`);
       if (response.ok) {
         const data = await response.json();
         setResultados(data);
