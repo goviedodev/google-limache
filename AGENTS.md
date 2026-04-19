@@ -10,6 +10,18 @@
 - **Severity**: 🔴 Críticos: 2 | 🟡 Medios: 4 | 🟢 Info: 3
 - **Ver también**: `CONTEXT_ARCHITECTURE.md` para errores de deploy y soluciones
 
+## ⚠️ Reglas de Proyecto
+
+**EL USUARIO SIEMPRE CORRE EL PROYECTO LOCALMENTE.** No intentar ejecutar `wrangler pages dev` ni ningún comando que leave el terminal esperando input o loop infinito. Solo dar instrucciones y esperar output del usuario.
+
+**Para probar localmente, el usuario ejecuta:**
+```bash
+cd /home/goviedo/proyectos/limache/google-limache
+rm -rf .wrangler
+rm -f public/_worker.js
+npx wrangler pages dev public --port 8787 --d1 locales --ip 0.0.0.0
+```
+
 ---
 
 ## 🔴 Issues Críticos (Fix inmediato)
