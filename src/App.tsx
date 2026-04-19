@@ -19,7 +19,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/locales?q=${encodeURIComponent(termino)}`);
       if (response.ok) {
         const data = await response.json();
-        setResultados(data);
+        setResultados(data.results || data);
       } else {
         // Si no hay API, usar datos locales como fallback
         buscarEnDatosLocales(termino);
