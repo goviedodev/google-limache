@@ -36,21 +36,25 @@ import googlemaps
 #
 # Ejemplos de zonas disponibles:
 #   - LIMACHE_CENTRO: Plaza de Armas
+#        'coords': (-32.99097137380414, -71.2756202276518),
+#        'radio': 2000,
 #   - LIMACHE_NUEVO: Sector nuevo/este de Limache
-#   - LIMACHE_VIEJO: Sector antiguo/oeste de Limache
+#   - 'LIMACHE_VIEJO': { // Sector antiguo/oeste de Limache
+#        'coords': (-33.008, -71.264),
+#        'radio': 1000,
+#    },
 #   - Quillota: Ciudad cercana
 #   - Villa Alemana: Ciudad cercana
+
+#   - Avenida Concepcion, Centro Veterinario -33.01480948672327, -71.26809175449857
+#   - 7000 metros
 # ============================================================
 
 ZONAS = {
     'LIMACHE_CENTRO': {
-        'coords': (-32.99097137380414, -71.2756202276518),
-        'radio': 2000,
-    },
-    'LIMACHE_VIEJO': {
-        'coords': (-33.008, -71.264),
-        'radio': 1000,
-    },
+        'coords': (-33.01480948672327, -71.26809175449857),
+        'radio': 14000, # 7 Kms.
+    }
     # === AGREGAR NUEVAS ZONAS AQUÍ ===
     # 'QUILLOTA': {
     #     'coords': (-32.950, -71.230),
@@ -69,6 +73,9 @@ ZONAS_A_BUSCAR = list(ZONAS.keys())  # ['LIMACHE_CENTRO', 'LIMACHE_VIEJO', ...]
 # Starting ID (para continuar desde existente, ej: 70 para continuar después de 69)
 # Establecer en 1 para empezar desde cero, o en N+1 para continuar después de N existentes
 START_ID = int(os.getenv('START_ID', '1'))  # Cambiar a 70 para continuar después de 69 existentes
+
+# Borrar registros existentes antes de insertar (1 = sí, 0 = no)
+DELETE_EXISTING = os.getenv('DELETE_EXISTING', '0') == '1'
 
 # Tipos de lugares a buscar
 TIPOS = ['restaurant', 'cafe', 'bar', 'supermarket', 'pharmacy', 'bank', 'store']
