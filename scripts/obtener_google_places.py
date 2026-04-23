@@ -129,6 +129,9 @@ START_ID = int(os.getenv('START_ID', '1'))  # Cambiar a 70 para continuar despu�
 # Borrar registros existentes antes de insertar (1 = sí, 0 = no)
 DELETE_EXISTING = os.getenv('DELETE_EXISTING', '0') == '1'
 
+# Modo de prueba: limitar a N puntos de grilla (0 = sin límite, buscar todo)
+TEST_MODE = int(os.getenv('TEST_MODE', '0'))
+
 # Tipos de lugares a buscar
 TIPOS = ['restaurant', 'cafe', 'bar', 'supermarket', 'pharmacy', 'bank', 'store']
 
@@ -227,6 +230,12 @@ for nombre_zona in ZONAS_A_BUSCAR:
     
     # Generar grilla de puntos
     puntos = generar_grilla(centro[0], centro[1], radio_total, radio_punto_m=1000)
+    
+    # Modo de prueba: limitar puntos
+    if TEST_MODE > 0:
+        puntos = puntos[:TEST_MODE]
+        print(f"   ⚠️ TEST MODE: Limitado a {len(puntos)} punto(s)")
+    
     print(f"   Grilla: {len(puntos)} puntos de búsqueda")
     
     for idx, punto in enumerate(puntos):
@@ -262,6 +271,11 @@ unique_results = {}
 for place in todos_resultados:
     unique_results[place['place_id']] = place
 todos_resultados = list(unique_results.values())
+
+# Modo de prueba: limitar resultados
+if TEST_MODE > 0:
+    todos_resultados = todos_resultados[:3]
+    print(f"⚠️ TEST MODE: Limitado a {len(todos_resultados)} locales")
 
 print(f"\n📊 Total de lugares encontrados (sin duplicados): {len(todos_resultados)}")
 
