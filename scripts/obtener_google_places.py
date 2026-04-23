@@ -147,8 +147,8 @@ def generar_insert_sql(negocio, indice, sql_mode='INSERT OR IGNORE'):
     website = sql_val(negocio.get('website', ''))
     imagen_url = sql_val(negocio.get('imagen_url', ''))
     
-    # Usar START_ID + indice para generar ID único
-    local_id = f"loc-{START_ID + indice:03d}"
+    # Usar START_ID + indice para generar ID único (con comillas para SQL)
+    local_id = f"'loc-{START_ID + indice:03d}'"
     
     # Usar INSERT o INSERT OR IGNORE según modo
     return f"""{sql_mode} INTO locales (id, nombre, descripcion, categoria, imagen_url, imagen_titulo, imagen_alt, indicaciones, plus_code, celular, correo, direccion, rating, horario, website)
