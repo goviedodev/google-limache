@@ -2,26 +2,67 @@
 """
 Script para obtener negocios del centro de Limache usando Google Maps Places API
 y generar SQL para insertar en D1
+
+MODO DE USO:
+- Este script soporta MÚLTIPLES ZONAS de búsqueda
+- Editar el diccionario ZONAS para agregar nuevas zonas
+- Seleccionar qué zonas buscar con ZONAS_A_BUSCAR
+- NO borra los registros existentes
+- Usa "INSERT OR IGNORE" para evitar duplicados por ID
+- START_ID configurable para continuar desde ID existente
+
+Ejemplo de uso:
+  export GOOGLE_MAPS_API_KEY='...'
+  export START_ID=70  # Continuar después de 69 existentes
+  python scripts/obtener_google_places.py
 """
 
 import os
+import sys
 import json
 import googlemaps
 
-# Cargar API key desde variable de entorno
-API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
-if not API_KEY:
-    print("Error: GOOGLE_MAPS_API_KEY no está configurada")
-    print("Ejecuta: export GOOGLE_MAPS_API_KEY='tu_api_key'")
-    exit(1)
+# ============================================================
+# ZONAS DE BÚSQUEDA
+# ============================================================
+# Agregar nuevas zonas aquí con el formato:
+#   'NOMBRE_ZONA': {'coords': (lat, long), 'radio': metros}
+#
+# Ejemplos de zonas disponibles:
+#   - LIMACHE_CENTRO: Plaza de Armas
+#   - LIMACHE_NUEVO: Sector nuevo/este de Limache
+#   - LIMACHE_VIEJO: Sector antiguo/oeste de Limache
+#   - Quillota: Ciudad cercana
+#   - Villa Alemana: Ciudad cercana
+# ============================================================
 
-gmaps = googlemaps.Client(key=API_KEY)
+ZONAS = {
+    'LIMACHE_CENTRO': {
+        'coords': (-32.99097137380414, -71.2756202276518),
+        'radio': 2000,
+    },
+    'LIMACHE_VIEJO': {
+        'coords': (-33.008, -71.264),
+        'radio': 1000,
+    },
+    # === AGREGAR NUEVAS ZONAS AQUÍ ===
+    # 'QUILLOTA': {
+    #     'coords': (-32.950, -71.230),
+    #     'radio': 1500,
+    # },
+}
 
-# Centro de Limache (Plaza de Armas)
-CENTER = (-32.99097137380414, -71.2756202276518)
+# Zonas a buscar (seleccionar cuáles usar)
+# Por defecto busca todas las zonas definidas
+ZONAS_A_BUSCAR = list(ZONAS.keys())  # ['LIMACHE_CENTRO', 'LIMACHE_VIEJO', ...]
 
-# Radio de búsqueda en metros (2000m para abarcar todo Limache)
-RADIO = 2000
+# ============================================================
+# OTRAS CONFIGURACIONES
+# ============================================================
+
+# Starting ID (para continuar desde existente, ej: 70 para continuar después de 69)
+# Establecer en 1 para empezar desde cero, o en N+1 para continuar después de N existentes
+START_ID = int(os.getenv('START_ID', '1'))  # Cambiar a 70 para continuar después de 69 existentes
 
 # Tipos de lugares a buscar
 TIPOS = ['restaurant', 'cafe', 'bar', 'supermarket', 'pharmacy', 'bank', 'store']
@@ -36,6 +77,26 @@ TIPO_A_CATEGORIA = {
     'bank': 'servicio',
     'store': 'tienda',
 }
+
+# ============================================================
+# INICIO DEL SCRIPT
+# ============================================================
+
+# Cargar API key desde variable de entorno
+API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+if not API_KEY:
+    print("Error: GOOGLE_MAPS_API_KEY no está configurada")
+    print("Ejecuta: export GOOGLE_MAPS_API_KEY='tu_api_key'")
+    exit(1)
+
+print("=" * 50)
+print("🔍 BUSCADOR DE NEGOCIOS - GOOGLE MAPS")
+print("=" * 50)
+print(f"\n📍 Zonas a buscar: {', '.join(ZONAS_A_BUSCAR)}")
+print(f"🔢 Starting ID: {START_ID}")
+print()
+
+gmaps = googlemaps.Client(key=API_KEY)
 
 def obtener_place_details(place_id):
     """Obtiene detalles completos de un lugar"""
@@ -59,7 +120,7 @@ def sql_val(v):
     return f"'{texto}'"
 
 def generar_insert_sql(negocio, indice):
-    """Genera sentencia SQL INSERT para un negocio"""
+    """Genera sentencia SQL INSERT para un negocio (sin borrar existentes)"""
     nombre = sql_val(negocio.get('nombre'))
     descripcion = sql_val(negocio.get('descripcion', ''))
     categoria = sql_val(negocio.get('categoria'))
@@ -73,41 +134,64 @@ def generar_insert_sql(negocio, indice):
     website = sql_val(negocio.get('website', ''))
     imagen_url = sql_val(negocio.get('imagen_url', ''))
     
-    local_id = f"loc-{indice:03d}"
+    # Usar START_ID + indice para generar ID único
+    local_id = f"loc-{START_ID + indice:03d}"
     
-    return f"""INSERT INTO locales (id, nombre, descripcion, categoria, imagen_url, imagen_titulo, imagen_alt, indicaciones, plus_code, celular, correo, direccion, rating, horario, website)
+    # Usar INSERT OR IGNORE para no duplicar si el ID ya existe
+    return f"""INSERT OR IGNORE INTO locales (id, nombre, descripcion, categoria, imagen_url, imagen_titulo, imagen_alt, indicaciones, plus_code, celular, correo, direccion, rating, horario, website)
 VALUES ({local_id}, {nombre}, {descripcion}, {categoria}, {imagen_url}, {nombre}, {nombre}, {indicaciones}, {plus_code}, {celular}, {correo}, {direccion}, {rating}, {horario}, {website});"""
 
-print("🔍 Obteniendo negocios de Limache, Chile...\n")
+# ============================================================
+# BÚSQUEDA POR ZONAS
+# ============================================================
+
+print("=" * 50)
+print("FASE 1: Buscando lugares en zonas")
+print("=" * 50)
 
 todos_resultados = []
 
-# Primera fase: obtener lista de negocios
-for tipo in TIPOS:
-    print(f"📥 Obteniendo {tipo}...")
+for nombre_zona in ZONAS_A_BUSCAR:
+    zona = ZONAS[nombre_zona]
+    coords = zona['coords']
+    radio = zona['radio']
     
-    try:
-        results = gmaps.places_nearby(
-            location=CENTER,
-            radius=RADIO,
-            type=tipo
-        )
+    print(f"\n📍 Zona: {nombre_zona}")
+    print(f"   Coordenadas: {coords}")
+    print(f"   Radio: {radio}m")
+    
+    for tipo in TIPOS:
+        print(f"  📥 Buscando {tipo}...")
         
-        if results.get('results'):
-            for place in results['results']:
-                todos_resultados.append({
-                    'place_id': place['place_id'],
-                    'nombre': place.get('name', ''),
-                    'direccion': place.get('vicinity', ''),
-                    'rating': place.get('rating'),
-                    'categoria': TIPO_A_CATEGORIA.get(tipo, 'tienda'),
-                    'tipo_original': tipo,
-                })
-                print(f"  ✓ {place['name']}")
-    except Exception as e:
-        print(f"  ✗ Error: {e}")
+        try:
+            results = gmaps.places_nearby(
+                location=coords,
+                radius=radio,
+                type=tipo
+            )
+            
+            if results.get('results'):
+                for place in results['results']:
+                    todos_resultados.append({
+                        'place_id': place['place_id'],
+                        'nombre': place.get('name', ''),
+                        'direccion': place.get('vicinity', ''),
+                        'rating': place.get('rating'),
+                        'categoria': TIPO_A_CATEGORIA.get(tipo, 'tienda'),
+                        'tipo_original': tipo,
+                        'zona_busqueda': nombre_zona,
+                    })
+                    print(f"    ✓ {place['name']}")
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
 
-print(f"\n📊 Total de lugares encontrados: {len(todos_resultados)}")
+# Eliminar duplicados por place_id
+unique_results = {}
+for place in todos_resultados:
+    unique_results[place['place_id']] = place
+todos_resultados = list(unique_results.values())
+
+print(f"\n📊 Total de lugares encontrados (sin duplicados): {len(todos_resultados)}")
 
 # Segunda fase: obtener detalles de cada lugar
 print("\n🔎 Obteniendo detalles de cada lugar...\n")
@@ -160,20 +244,21 @@ print("\n📝 Generando SQL...\n")
 
 sql_statements = []
 for i, negocio in enumerate(negocios_con_detalles):
-    sql = generar_insert_sql(negocio, i + 1)
+    sql = generar_insert_sql(negocio, i)
     sql_statements.append(sql)
 
-# Guardar SQL en archivo
+# Guardar SQL en archivo (SIN DELETE)
 output_file = '/home/goviedo/proyectos/limache/google-limache/scripts/insert_locales.sql'
 with open(output_file, 'w') as f:
-    f.write('-- SQL para insertar negocios de Limache desde Google Maps Places API\n')
-    f.write('-- Generado automáticamente\n\n')
-    f.write('DELETE FROM locales;\n\n')
+    f.write(f'-- SQL para insertar negocios de Limache desde Google Maps Places API\n')
+    f.write(f'-- Generado automáticamente (START_ID={START_ID})\n')
+    f.write(f'-- NO borra los registros existentes\n\n')
     f.write('\n'.join(sql_statements))
     f.write('\n')
 
 print(f"✅ SQL guardado en: {output_file}")
 print(f"   Total de inserciones: {len(sql_statements)}")
+print(f"   Rango de IDs: loc-{START_ID:03d} a loc-{START_ID + len(sql_statements) - 1:03d}")
 
 # Mostrar resumen por categoría
 print("\n📊 Resumen por categoría:")
