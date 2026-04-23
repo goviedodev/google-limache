@@ -7,13 +7,19 @@ MODO DE USO:
 - Este script soporta MÚLTIPLES ZONAS de búsqueda
 - Editar el diccionario ZONAS para agregar nuevas zonas
 - Seleccionar qué zonas buscar con ZONAS_A_BUSCAR
-- NO borra los registros existentes
-- Usa "INSERT OR IGNORE" para evitar duplicados por ID
+- Por defecto NO borra los registros existentes
+- Para borrar y empezar fresco: exportar DELETE_EXISTING=1
 - START_ID configurable para continuar desde ID existente
 
-Ejemplo de uso:
+Ejemplo de uso (AGREGAR nuevos):
   export GOOGLE_MAPS_API_KEY='...'
-  export START_ID=70  # Continuar después de 69 existentes
+  export START_ID=70
+  python scripts/obtener_google_places.py
+
+Ejemplo de uso (EMPEZAR FRESCO):
+  export GOOGLE_MAPS_API_KEY='...'
+  export DELETE_EXISTING=1  # Borra todos los registros
+  export START_ID=1
   python scripts/obtener_google_places.py
 """
 
@@ -119,8 +125,8 @@ def sql_val(v):
     texto = str(v).replace("'", "''")
     return f"'{texto}'"
 
-def generar_insert_sql(negocio, indice):
-    """Genera sentencia SQL INSERT para un negocio (sin borrar existentes)"""
+def generar_insert_sql(negocio, indice, sql_mode='INSERT OR IGNORE'):
+    """Genera sentencia SQL INSERT para un negocio"""
     nombre = sql_val(negocio.get('nombre'))
     descripcion = sql_val(negocio.get('descripcion', ''))
     categoria = sql_val(negocio.get('categoria'))
@@ -137,8 +143,8 @@ def generar_insert_sql(negocio, indice):
     # Usar START_ID + indice para generar ID único
     local_id = f"loc-{START_ID + indice:03d}"
     
-    # Usar INSERT OR IGNORE para no duplicar si el ID ya existe
-    return f"""INSERT OR IGNORE INTO locales (id, nombre, descripcion, categoria, imagen_url, imagen_titulo, imagen_alt, indicaciones, plus_code, celular, correo, direccion, rating, horario, website)
+    # Usar INSERT o INSERT OR IGNORE según modo
+    return f"""{sql_mode} INTO locales (id, nombre, descripcion, categoria, imagen_url, imagen_titulo, imagen_alt, indicaciones, plus_code, celular, correo, direccion, rating, horario, website)
 VALUES ({local_id}, {nombre}, {descripcion}, {categoria}, {imagen_url}, {nombre}, {nombre}, {indicaciones}, {plus_code}, {celular}, {correo}, {direccion}, {rating}, {horario}, {website});"""
 
 # ============================================================
@@ -243,22 +249,36 @@ print(f"\n✅ Negocios con detalles: {len(negocios_con_detalles)}")
 print("\n📝 Generando SQL...\n")
 
 sql_statements = []
+
+# Si DELETE_EXISTING=1, agregar DELETE al inicio
+if os.getenv('DELETE_EXISTING', '0') == '1':
+    sql_statements.append('DELETE FROM locales;')
+    sql_mode = 'REPLACE'
+else:
+    sql_mode = 'INSERT OR IGNORE'
+
 for i, negocio in enumerate(negocios_con_detalles):
-    sql = generar_insert_sql(negocio, i)
+    sql = generar_insert_sql(negocio, i, sql_mode)
     sql_statements.append(sql)
 
-# Guardar SQL en archivo (SIN DELETE)
+# Guardar SQL en archivo
 output_file = '/home/goviedo/proyectos/limache/google-limache/scripts/insert_locales.sql'
 with open(output_file, 'w') as f:
     f.write(f'-- SQL para insertar negocios de Limache desde Google Maps Places API\n')
     f.write(f'-- Generado automáticamente (START_ID={START_ID})\n')
-    f.write(f'-- NO borra los registros existentes\n\n')
+    if DELETE_EXISTING:
+        f.write(f'-- ⚠️ BORRÓ todos los registros existentes\n\n')
+    else:
+        f.write(f'-- NO borra los registros existentes\n\n')
     f.write('\n'.join(sql_statements))
     f.write('\n')
 
 print(f"✅ SQL guardado en: {output_file}")
-print(f"   Total de inserciones: {len(sql_statements)}")
-print(f"   Rango de IDs: loc-{START_ID:03d} a loc-{START_ID + len(sql_statements) - 1:03d}")
+inserciones = len(sql_statements) - (1 if DELETE_EXISTING else 0)
+print(f"   Total de inserciones: {inserciones}")
+print(f"   Rango de IDs: loc-{START_ID:03d} a loc-{START_ID + inserciones - 1:03d}")
+if DELETE_EXISTING:
+    print(f"   ⚠️ Modo: REEMPLAZAR TODO (DELETE incluido)")
 
 # Mostrar resumen por categoría
 print("\n📊 Resumen por categoría:")
