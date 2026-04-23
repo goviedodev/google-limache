@@ -226,7 +226,7 @@ for nombre_zona in ZONAS_A_BUSCAR:
     print(f"   Radio total: {radio_total}m")
     
     # Generar grilla de puntos
-    puntos = generar_grilla(centro[0], centro[1], radio_total, radio_punto_m=500)
+    puntos = generar_grilla(centro[0], centro[1], radio_total, radio_punto_m=1000)
     print(f"   Grilla: {len(puntos)} puntos de búsqueda")
     
     for idx, punto in enumerate(puntos):
@@ -238,7 +238,7 @@ for nombre_zona in ZONAS_A_BUSCAR:
             try:
                 results = gmaps.places_nearby(
                     location=punto,
-                    radius=500,  # Radio fijo 500m
+                    radius=1000,  # Radio fijo 1000m
                     type=tipo
                 )
                 
