@@ -17,8 +17,11 @@ if not API_KEY:
 
 gmaps = googlemaps.Client(key=API_KEY)
 
-# Centro de Limache
-CENTER = (-33.008, -71.264)
+# Centro de Limache (Plaza de Armas)
+CENTER = (-32.99097137380414, -71.2756202276518)
+
+# Radio de búsqueda en metros (2000m para abarcar todo Limache)
+RADIO = 2000
 
 # Tipos de lugares a buscar
 TIPOS = ['restaurant', 'cafe', 'bar', 'supermarket', 'pharmacy', 'bank', 'store']
@@ -86,7 +89,7 @@ for tipo in TIPOS:
     try:
         results = gmaps.places_nearby(
             location=CENTER,
-            radius=800,
+            radius=RADIO,
             type=tipo
         )
         
