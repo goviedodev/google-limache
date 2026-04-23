@@ -260,7 +260,7 @@ sql_statements = []
 # Si DELETE_EXISTING=1, agregar DELETE al inicio
 if os.getenv('DELETE_EXISTING', '0') == '1':
     sql_statements.append('DELETE FROM locales;')
-    sql_mode = 'REPLACE'
+    sql_mode = 'INSERT'
 else:
     sql_mode = 'INSERT OR IGNORE'
 
