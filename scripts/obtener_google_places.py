@@ -26,7 +26,59 @@ Ejemplo de uso (EMPEZAR FRESCO):
 import os
 import sys
 import json
+import math
 import googlemaps
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Calcula distancia en km entre dos coordenadas"""
+    R = 6371  # Radio de la Tierra en km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat/2)**2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon/2)**2)
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def generar_grilla(centro_lat, centro_lon, radio_total_m, radio_punto_m=250):
+    """
+    Genera una grilla de puntos de búsqueda dentro de un radio total.
+    
+    Args:
+        centro_lat, centro_lon: Centro del área
+        radio_total_m: Radio total del área en metros
+        radio_punto_m: Radio de cada punto individual (default 250m)
+    
+    Returns:
+        Lista de tuplas (lat, lon) para cada punto de la grilla
+    """
+    # Espaciado: 1.8x el radio para solapamiento
+    espaciado = radio_punto_m * 1.8  # ~450m entre puntos
+    
+    # Calcular grados equivalentes
+    km_to_deg_lat = 1 / 111.32
+    km_to_deg_lon = 1 / (111.32 * math.cos(math.radians(centro_lat)))
+    
+    espaciado_lat = espaciado / 1000 * km_to_deg_lat
+    espaciado_lon = espaciado / 1000 * km_to_deg_lon
+    
+    # Calcular cuántos puntos caben
+    radio_total_km = radio_total_m / 1000
+    n_puntos = int(radio_total_km / (espaciado / 1000)) + 1
+    
+    puntos = []
+    for i in range(-n_puntos, n_puntos + 1):
+        for j in range(-n_puntos, n_puntos + 1):
+            lat = centro_lat + i * espaciado_lat
+            lon = centro_lon + j * espaciado_lon
+            
+            # Verificar que esté dentro del radio total
+            dist_km = haversine(centro_lat, centro_lon, lat, lon)
+            if dist_km <= radio_total_km:
+                puntos.append((lat, lon))
+    
+    return puntos
 
 # ============================================================
 # ZONAS DE BÚSQUEDA
@@ -166,37 +218,44 @@ todos_resultados = []
 
 for nombre_zona in ZONAS_A_BUSCAR:
     zona = ZONAS[nombre_zona]
-    coords = zona['coords']
-    radio = zona['radio']
+    centro = zona['coords']
+    radio_total = zona['radio']
     
     print(f"\n📍 Zona: {nombre_zona}")
-    print(f"   Coordenadas: {coords}")
-    print(f"   Radio: {radio}m")
+    print(f"   Centro: {centro}")
+    print(f"   Radio total: {radio_total}m")
     
-    for tipo in TIPOS:
-        print(f"  📥 Buscando {tipo}...")
+    # Generar grilla de puntos
+    puntos = generar_grilla(centro[0], centro[1], radio_total, radio_punto_m=500)
+    print(f"   Grilla: {len(puntos)} puntos de búsqueda")
+    
+    for idx, punto in enumerate(puntos):
+        print(f"\n  [{idx+1}/{len(puntos)}] Punto: ({punto[0]:.4f}, {punto[1]:.4f})")
         
-        try:
-            results = gmaps.places_nearby(
-                location=coords,
-                radius=radio,
-                type=tipo
-            )
+        for tipo in TIPOS:
+            print(f"    📥 Buscando {tipo}...")
             
-            if results.get('results'):
-                for place in results['results']:
-                    todos_resultados.append({
-                        'place_id': place['place_id'],
-                        'nombre': place.get('name', ''),
-                        'direccion': place.get('vicinity', ''),
-                        'rating': place.get('rating'),
-                        'categoria': TIPO_A_CATEGORIA.get(tipo, 'tienda'),
-                        'tipo_original': tipo,
-                        'zona_busqueda': nombre_zona,
-                    })
-                    print(f"    ✓ {place['name']}")
-        except Exception as e:
-            print(f"    ✗ Error: {e}")
+            try:
+                results = gmaps.places_nearby(
+                    location=punto,
+                    radius=500,  # Radio fijo 500m
+                    type=tipo
+                )
+                
+                if results.get('results'):
+                    for place in results['results']:
+                        todos_resultados.append({
+                            'place_id': place['place_id'],
+                            'nombre': place.get('name', ''),
+                            'direccion': place.get('vicinity', ''),
+                            'rating': place.get('rating'),
+                            'categoria': TIPO_A_CATEGORIA.get(tipo, 'tienda'),
+                            'tipo_original': tipo,
+                            'zona_busqueda': nombre_zona,
+                        })
+                        print(f"      ✓ {place['name']}")
+            except Exception as e:
+                print(f"      ✗ Error: {e}")
 
 # Eliminar duplicados por place_id
 unique_results = {}
